@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -40,39 +41,34 @@ Or:	%[1]s [info.json] [data.json]
 `
 )
 
-type buff struct {
-	unencoded []byte
-	encoded   []byte
+type frame struct {
+	sizeRaw int32
+	sizeCom int32
+	bytes.Buffer
 }
 
-// read fills the encoded buffer
-func (b *buff) read(r io.Reader) error {
-	n, err := r.Read(b.encoded)
+// decode decodes the content in place.
+func (f *frame) decode() error {
+	b := make([]byte, f.sizeRaw)
+
+	n, err := lz4.UncompressBlock(f.Bytes(), b)
 
 	if err != nil {
 		return err
 	}
 
-	if s := len(b.encoded); s != n {
-		return fmt.Errorf("Expecting %d bytes, read %d", s, n)
+	if int32(n) != f.sizeRaw {
+		return fmt.Errorf(
+			"Expecting %d bytes, read %d",
+			f.sizeRaw, int32(n),
+		)
 	}
 
-	return nil
-}
+	f.Reset()
 
-// decode decodes blocks in b.encoded to b.unencoded
-func (b *buff) decode() error {
-	si, err := lz4.UncompressBlock(b.encoded, b.unencoded)
+	_, err = f.Write(b)
 
-	if err != nil {
-		return err
-	}
-
-	if s := len(b.unencoded); s != si {
-		return fmt.Errorf("Expecting %d bytes, got %d", s, si)
-	}
-
-	return nil
+	return err
 }
 
 // readInt32 reads an int32 from a file.
@@ -88,8 +84,8 @@ func readInt32(r io.Reader) (int32, error) {
 	return v, nil
 }
 
-// newBuf returns a buffer for lz4 to use
-func newBuf(r io.Reader) (*buff, error) {
+// readToFrame returns a buffer for lz4 to use
+func readToFrame(r io.Reader) (*frame, error) {
 	enc, err := readInt32(r)
 
 	if err != nil {
@@ -102,7 +98,7 @@ func newBuf(r io.Reader) (*buff, error) {
 		return nil, fmt.Errorf("Unable to read unencoded size: %s", err)
 	}
 
-	return &buff{unencoded: make([]byte, unc), encoded: make([]byte, enc)}, nil
+	return &frame{sizeRaw: unc, sizeCom: enc}, nil
 }
 
 // checkMagic checks the magic number in the save file.
@@ -110,11 +106,11 @@ func checkMagic(r io.Reader) {
 	m, err := readInt32(r)
 
 	if err != nil {
-		log.Fatalf("Failed magic number check: %s", err)
+		log.Panicf("Failed magic number check: %s", err)
 	}
 
 	if m != magic {
-		log.Fatalf("Incorrect magic number: %d", m)
+		log.Panicf("Incorrect magic number: %d", m)
 	}
 }
 
@@ -123,29 +119,26 @@ func checkVer(r io.Reader) {
 	v, err := readInt32(r)
 
 	if err != nil {
-		log.Fatalf("Failed version number check: %s", err)
+		log.Panicf("Failed version number check: %s", err)
 	}
 
 	if v != ver {
-		log.Fatalf("Failed version number check: %x", v)
+		log.Panicf("Failed version number check: %x", v)
 	}
 }
 
 // writeJSON writes the buffer to a file.
-func writeJSON(fn string, f io.Reader, b *buff) {
-	err := b.read(f)
-	if err != nil {
-		log.Fatalf("Unable to read buffer: %s", err)
+func writeJSON(fn string, r io.Reader, f *frame) {
+	if _, err := io.CopyN(f, r, int64(f.sizeCom)); err != nil {
+		log.Panicf("Unable to read file: %s", err)
 	}
 
-	err = b.decode()
-	if err != nil {
-		log.Fatalf("Unable to decode buffer: %s", err)
+	if err := f.decode(); err != nil {
+		log.Panicf("Unable to decode: %s", err)
 	}
 
-	err = ioutil.WriteFile(fn, b.unencoded, 0644)
-	if err != nil {
-		log.Fatalf("Unable to write file: %s", err)
+	if err := ioutil.WriteFile(fn, f.Bytes(), 0644); err != nil {
+		log.Panicf("Unable to write file: %s", err)
 	}
 }
 
@@ -155,25 +148,25 @@ func unpack(fn string) {
 
 	f, err := os.Open(fn)
 	if err != nil {
-		log.Fatalf("Unable to open %s: %s", fn, err)
+		log.Panicf("Unable to open %s: %s", fn, err)
 	}
 
 	defer func() {
 		err = f.Close()
 		if err != nil {
-			log.Fatalf("Unable to close %s: %s", fn, err)
+			log.Panicf("Unable to close %s: %s", fn, err)
 		}
 	}()
 
 	checkMagic(f)
 	checkVer(f)
 
-	info, err := newBuf(f)
+	info, err := readToFrame(f)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	data, err := newBuf(f)
+	data, err := readToFrame(f)
 	if err != nil {
 		log.Fatalln(err)
 	}
