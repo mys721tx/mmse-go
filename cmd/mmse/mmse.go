@@ -127,7 +127,8 @@ func checkVer(r io.Reader) {
 	}
 }
 
-// writeJSON writes the buffer to a file.
+// writeJSON reads a file to a frame, decodes it, and writes the decoded
+// frame to a file.
 func writeJSON(fn string, r io.Reader, f *frame) {
 	if _, err := io.CopyN(f, r, int64(f.sizeCom)); err != nil {
 		log.Panicf("Unable to read file: %s", err)
@@ -142,9 +143,22 @@ func writeJSON(fn string, r io.Reader, f *frame) {
 	}
 }
 
+// split splits a file name into base and extension. Modified from path.Ext().
+func split(fn string) string {
+	for i := len(fn) - 1; i >= 0; i-- {
+		if fn[i] == '.' {
+			if fn[i:] == ".sav" || fn[i:] == ".json" {
+			return fn[:i]
+		}
+			break
+		}
+	}
+	return fn
+}
+
 // unpack is a wrapper for unpacking json files.
 func unpack(fn string) {
-	bn := path.Base(fn)
+	bn := split(path.Base(fn))
 
 	f, err := os.Open(fn)
 	if err != nil {
