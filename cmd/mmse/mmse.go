@@ -39,13 +39,18 @@ Or:	%[1]s [info.json] [data.json]
 )
 
 type frame struct {
-	sizeRaw int32
-	sizeCom int32
+	sizeRaw   int32
+	sizeCom   int32
+	isEncoded bool
 	bytes.Buffer
 }
 
 // decode decodes the content in place.
 func (f *frame) decode() error {
+	if !f.isEncoded {
+		return fmt.Errorf("frame is not encoded")
+	}
+
 	b := make([]byte, f.sizeRaw)
 
 	n, err := lz4.UncompressBlock(f.Bytes(), b)
@@ -56,7 +61,7 @@ func (f *frame) decode() error {
 
 	if int32(n) != f.sizeRaw {
 		return fmt.Errorf(
-			"Expecting %d bytes, read %d",
+			"expecting %d bytes, read %d",
 			f.sizeRaw, int32(n),
 		)
 	}
@@ -65,10 +70,16 @@ func (f *frame) decode() error {
 
 	_, err = f.Write(b)
 
+	f.isEncoded = false
+
 	return err
 }
 
 func (f *frame) encode() error {
+	if f.isEncoded {
+		return fmt.Errorf("frame is already encoded")
+	}
+
 	b := make([]byte, f.sizeRaw)
 
 	n, err := lz4.CompressBlock(f.Bytes(), b, make([]int, 1<<16))
@@ -88,6 +99,8 @@ func (f *frame) encode() error {
 
 	_, err = f.Write(b)
 
+	f.isEncoded = true
+
 	f.Truncate(int(f.sizeCom))
 
 	return err
@@ -106,7 +119,6 @@ func readInt32(r io.Reader) (int32, error) {
 
 // writeInt32 writes an int32 from a file.
 func writeInt32(w io.Writer, v int32) error {
-
 	err := binary.Write(w, binary.LittleEndian, v)
 
 	return err
@@ -129,6 +141,8 @@ func readSizeToFrame(r io.Reader) *frame {
 		f.sizeRaw = unc
 	}
 
+	f.isEncoded = true
+
 	return f
 }
 
@@ -148,6 +162,8 @@ func readJSONToFrame(fn string) *frame {
 	if err := f.encode(); err != nil {
 		log.Panicf("Unable to compress frame: %s", err)
 	}
+
+	f.isEncoded = false
 
 	return f
 }
