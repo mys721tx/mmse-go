@@ -17,215 +17,19 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
 
-	"github.com/pierrec/lz4"
+	"github.com/mys721tx/mmse-go/pkg/mmse"
 )
 
 var (
-	// magic and ver are little endian
-	magic int32 = 0x73326d6d
-	ver   int32 = 0x00000004
-	usg         = `Usage: %[1]s	[game.sav]
+	usg = `Usage: %[1]s	[game.sav]
 Or:	%[1]s [info.json] [data.json]
 `
 )
-
-type frame struct {
-	sizeRaw   int32
-	sizeCom   int32
-	isEncoded bool
-	bytes.Buffer
-}
-
-// decode decodes the content in place.
-func (f *frame) decode() error {
-	if !f.isEncoded {
-		return fmt.Errorf("frame is not encoded")
-	}
-
-	b := make([]byte, f.sizeRaw)
-
-	n, err := lz4.UncompressBlock(f.Bytes(), b)
-
-	if err != nil {
-		return err
-	}
-
-	if int32(n) != f.sizeRaw {
-		return fmt.Errorf(
-			"expecting %d bytes, read %d",
-			f.sizeRaw, int32(n),
-		)
-	}
-
-	f.Reset()
-
-	_, err = f.Write(b)
-
-	f.isEncoded = false
-
-	return err
-}
-
-func (f *frame) encode() error {
-	if f.isEncoded {
-		return fmt.Errorf("frame is already encoded")
-	}
-
-	b := make([]byte, f.sizeRaw)
-
-	n, err := lz4.CompressBlock(f.Bytes(), b, make([]int, 1<<16))
-
-	if err != nil {
-		return err
-	}
-
-	// lz4.CompressBLock returns 0 if the data is not compressible.
-	if n == 0 {
-		f.sizeCom = f.sizeRaw
-	} else {
-		f.sizeCom = int32(n)
-	}
-
-	f.Reset()
-
-	_, err = f.Write(b)
-
-	f.isEncoded = true
-
-	f.Truncate(int(f.sizeCom))
-
-	return err
-}
-
-// readInt32 reads an int32 from a file.
-func readInt32(r io.Reader) (int32, error) {
-	var v int32
-
-	if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
-		return 0, err
-	}
-
-	return v, nil
-}
-
-// writeInt32 writes an int32 from a file.
-func writeInt32(w io.Writer, v int32) error {
-	err := binary.Write(w, binary.LittleEndian, v)
-
-	return err
-}
-
-// readSizeToFrame reads the sizes of lz4 blocks from a file and returns a
-// frame.
-func readSizeToFrame(r io.Reader) *frame {
-	f := new(frame)
-
-	if enc, err := readInt32(r); err != nil {
-		log.Panicf("Unable to read encoded size: %s", err)
-	} else {
-		f.sizeCom = enc
-	}
-
-	if unc, err := readInt32(r); err != nil {
-		log.Panicf("Unable to read unencoded size: %s", err)
-	} else {
-		f.sizeRaw = unc
-	}
-
-	f.isEncoded = true
-
-	return f
-}
-
-// readJSONToFrame reads from a file into a frame, compresses it, and sets the
-// sizes.
-func readJSONToFrame(fn string) *frame {
-	f := new(frame)
-
-	if r, err := os.Open(fn); err != nil {
-		log.Panicf("Unable to open json file: %s", err)
-	} else if n, err := io.Copy(f, r); err != nil {
-		log.Panicf("Unable to read json file: %s", err)
-	} else {
-		f.sizeRaw = int32(n)
-	}
-
-	if err := f.encode(); err != nil {
-		log.Panicf("Unable to compress frame: %s", err)
-	}
-
-	f.isEncoded = false
-
-	return f
-}
-
-// checkHeader checks the magic number and version number in the save file.
-func checkHeader(r io.Reader) {
-	if m, err := readInt32(r); err != nil {
-		log.Panicf("Failed magic number check: %s", err)
-	} else if m != magic {
-		log.Panicf("Incorrect magic number: %d", m)
-	}
-
-	if v, err := readInt32(r); err != nil {
-		log.Panicf("Failed version number check: %s", err)
-	} else if v != ver {
-		log.Panicf("Incorrect version number: %x", v)
-	}
-}
-
-// writeJSON reads a file to a frame, decodes it, and writes the decoded
-// frame to a file.
-func writeJSON(fn string, r io.Reader, f *frame) {
-	if _, err := io.CopyN(f, r, int64(f.sizeCom)); err != nil {
-		log.Panicf("Unable to read file: %s", err)
-	}
-
-	if err := f.decode(); err != nil {
-		log.Panicf("Unable to decode: %s", err)
-	}
-
-	if err := ioutil.WriteFile(fn, f.Bytes(), 0644); err != nil {
-		log.Panicf("Unable to write file: %s", err)
-	}
-}
-
-// writeHeader writes the magic number and version number to a save file.
-func writeHeader(w io.Writer) {
-	if err := writeInt32(w, magic); err != nil {
-		log.Panicf("Unable to write magic number: %s", err)
-	}
-	if err := writeInt32(w, ver); err != nil {
-		log.Panicf("Unable to write version number: %s", err)
-	}
-}
-
-// writeSize writes size to a save file.
-func writeSize(w io.Writer, f *frame) {
-	if err := writeInt32(w, f.sizeCom); err != nil {
-		log.Panicf("Unable to write encoded size: %s", err)
-	}
-
-	if err := writeInt32(w, f.sizeRaw); err != nil {
-		log.Panicf("Unable to write unencoded size: %s", err)
-	}
-}
-
-// writeFrame writes the frame to a save file.
-func writeFrame(w io.Writer, f *frame) {
-	if _, err := io.Copy(w, f); err != nil {
-		log.Panicf("Unable to write frame to save file: %s", err)
-	}
-}
 
 // split splits a file name into base and extension. Modified from path.Ext().
 func split(fn string) string {
@@ -256,14 +60,14 @@ func unpack(fn string) {
 		}
 	}()
 
-	checkHeader(f)
+	mmse.CheckHeader(f)
 
-	info := readSizeToFrame(f)
+	info := mmse.ReadSizeToFrame(f)
 
-	data := readSizeToFrame(f)
+	data := mmse.ReadSizeToFrame(f)
 
-	writeJSON(fmt.Sprintf("%s_info.json", bn), f, info)
-	writeJSON(fmt.Sprintf("%s_data.json", bn), f, data)
+	mmse.WriteJSON(fmt.Sprintf("%s_info.json", bn), f, info)
+	mmse.WriteJSON(fmt.Sprintf("%s_data.json", bn), f, data)
 }
 
 // unpack is a wrapper for packing json files.
@@ -282,18 +86,18 @@ func pack(in, dn string) {
 		}
 	}()
 
-	writeHeader(f)
+	mmse.WriteHeader(f)
 
-	info := readJSONToFrame(in)
+	info := mmse.ReadJSONToFrame(in)
 
-	writeSize(f, info)
+	mmse.WriteSize(f, info)
 
-	data := readJSONToFrame(dn)
+	data := mmse.ReadJSONToFrame(dn)
 
-	writeSize(f, data)
+	mmse.WriteSize(f, data)
 
-	writeFrame(f, info)
-	writeFrame(f, data)
+	mmse.WriteFrame(f, info)
+	mmse.WriteFrame(f, data)
 }
 
 func main() {
