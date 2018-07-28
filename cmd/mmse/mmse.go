@@ -26,8 +26,9 @@ import (
 )
 
 var (
-	usg = `Usage: %[1]s	[game.sav]
-Or:	%[1]s [info.json] [data.json]
+	usg = `Usage:
+	%[1]s <game.sav>
+	%[1]s <info.json> <data.json>
 `
 )
 
