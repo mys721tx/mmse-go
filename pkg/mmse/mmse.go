@@ -28,7 +28,7 @@ import (
 	"github.com/pierrec/lz4"
 )
 
-var (
+const (
 	// Magic is the magic number for Motorsport Manager save files.
 	Magic int32 = 0x73326d6d
 	// Ver is the version number for Motorsport Manager save files.
