@@ -1,0 +1,30 @@
+language: go
+os:
+  - linux
+  - osx
+go:
+  - '1.10'
+before_install:
+  - mkdir -p "${GOPATH}/bin"
+  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+  - dep ensure
+script:
+  - ./test.sh
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+before_deploy:
+  - mkdir "mmse-${TRAVIS_OS_NAME}-${TRAVIS_TAG}"
+  - go build cmd/mmse/mmse.go
+  - cp mmse "mmse-${TRAVIS_OS_NAME}-${TRAVIS_TAG}"
+  - cp LICENSE "mmse-${TRAVIS_OS_NAME}-${TRAVIS_TAG}"
+  - cp README.md "mmse-${TRAVIS_OS_NAME}-${TRAVIS_TAG}"
+  - zip -r "mmse-${TRAVIS_OS_NAME}-${TRAVIS_TAG}.zip" "mmse-${TRAVIS_OS_NAME}-${TRAVIS_TAG}"
+deploy:
+  provider: releases
+  api_key:
+    secure: qd9yGYl1CDs76UHU0VSBZCY4yLXiETwezLhGS9lLFbxznRDK0fG7aNYxEoRp51OmEaTnw8lIUbH4B75yCARdVB5G79rusvjoGKkVGFPEHuM+ruABntfwFs7WcALebwMyPKPRs+aBAp5T7+Omwjoz72DFBQlvOIciQhHGbsk+Vf9oV/IIziuDTuTZmb5PoprcQRsGAAzRLLxnTsq35K8j9z1ePV27LuHgfmo0h+toPJ1GYxQ0zk4CZZBufCo6deloxOBdwJL8HLOhyRyW04j2X68X1PntLzubjRyzGwlrhXhKwEU3311DHZckjD/9hYqPy5POaLHaC4DQ8tQZL/mljDWVulD/GXPKW/90ld/bDv2Kh3tP+Kgv7h92Sk+7cJ9C+0QMWlpzNwuE0LctX85W3VSUiE6/PVWg3P3tBBbVuEklmVPkE47SV7f7Trr9jywWA3gJHKUi8wYIHVtQD1EG8PQgQCxIpVRvGnaOOIynR7UTo9G6pvpEeJxLoOTFHivxQjg/kTZvL5gTbSwhaeUEkdNtmMto/3aPUnnlqZUyxjSqfsijcYJNTGcXpHlZqBjyGzSYTsZ/7ktbXg4PFEffRhD6f5sTvAW2ckCi6bF6aEmjnpEpidxEBVYAXPhozPs3bIyRa7y3CM4rcu3InqKZcAS+ksz0T9MZrv1oQUC5rPs=
+  file: "mmse-${TRAVIS_OS_NAME}-${TRAVIS_TAG}.zip"
+  skip_cleanup: true
+  on:
+    repo: mys721tx/mmse-go
+    tags: true

@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+// Package mmse provides functions to pack and unpack a Motorsport Manager save
+// file.
 package mmse
 
 import (

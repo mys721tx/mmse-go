@@ -1,5 +1,10 @@
 # mmse-go
 
+[![GoDoc](https://godoc.org/github.com/mys721tx/mmse-go?status.svg)](https://godoc.org/github.com/mys721tx/mmse-go)
+[![Build Status](https://travis-ci.org/mys721tx/mmse-go.svg?branch=master)](https://travis-ci.org/mys721tx/mmse-go)
+[![codecov](https://codecov.io/gh/mys721tx/mmse-go/branch/master/graph/badge.svg)](https://codecov.io/gh/mys721tx/mmse-go)
+[![CodeFactor](https://www.codefactor.io/repository/github/mys721tx/mmse-go/badge)](https://www.codefactor.io/repository/github/mys721tx/mmse-go)
+
 By [Yishen Miao](https://github.com/mys721tx)
 
 ## Description
