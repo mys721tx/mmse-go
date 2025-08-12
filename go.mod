@@ -1,10 +1,16 @@
 module github.com/mys721tx/mmse-go
 
 require (
-	github.com/frankban/quicktest v1.5.0 // indirect
-	github.com/pierrec/lz4 v2.5.2+incompatible
-	github.com/stretchr/objx v0.2.0 // indirect
-	github.com/stretchr/testify v1.6.1
+	github.com/pierrec/lz4 v2.6.1+incompatible
+	github.com/stretchr/testify v1.10.0
 )
 
-go 1.13
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/frankban/quicktest v1.5.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
+
+go 1.24
