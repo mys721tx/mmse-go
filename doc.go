@@ -25,8 +25,8 @@ to a save file. The save files use the file name of the data JSON file as
 prefix.
 
 Usage:
+
 	mmse <savefile>
 	mmse <infofile> <datafile>
-
 */
 package main
