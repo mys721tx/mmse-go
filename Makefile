@@ -1,12 +1,9 @@
-.PHONY: all default install uninstall test build release clean package
+.PHONY: all default install uninstall test build release clean package version
 
 PREFIX := /usr/local
 DESTDIR :=
 
-MAJORVERSION := 1
-MINORVERSION ?= 0
-PATCHVERSION := 3
-VERSION ?= ${MAJORVERSION}.${MINORVERSION}.${PATCHVERSION}
+VERSION = $(shell if test -f VERSION; then cat VERSION; else git describe | sed 's/-/./g;s/^v//;'; fi)
 
 LDFLAGS := -ldflags '-s -w -X main.version=${VERSION}'
 MOD := -mod=vendor
@@ -38,7 +35,7 @@ test:
 	gofmt -l *.go
 	@test -z "$$(gofmt -l *.go)" || (echo "Files need to be linted" && false)
 	go vet ${MOD} ./...
-	go test -v ${MOD} -race -coverprofile=profile.out -covermode=atomic ./...
+	go test -v ${MOD} -coverprofile=coverage.txt -covermode=atomic ./...
 
 build:
 	go build -v ${LDFLAGS} -o ${BINNAME} ${MOD}
@@ -54,3 +51,7 @@ package: release
 clean:
 	rm -rf ${PKGNAME}-*
 	rm -f ${BINNAME}
+	rm -f coverage.txt
+
+version:
+	@echo $(VERSION)

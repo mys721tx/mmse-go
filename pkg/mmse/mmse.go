@@ -23,7 +23,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -197,7 +196,7 @@ func WriteJSON(fn string, r io.Reader, f *Frame) {
 		log.Panicf("Unable to decode: %s", err)
 	}
 
-	if err := ioutil.WriteFile(fn, f.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(fn, f.Bytes(), 0644); err != nil {
 		log.Panicf("Unable to write file: %s", err)
 	}
 }
